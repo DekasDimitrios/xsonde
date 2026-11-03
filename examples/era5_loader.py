@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 
+import numpy as np
 import torch
 import xarray as xr
 
@@ -58,11 +59,31 @@ def _coord(ds, candidates):
     raise KeyError(f"none of {candidates} found in {list(ds.coords)}")
 
 
-def load_batch(start_time, data_dir=DATA_DIR):
+def _tensor(array):
+    return torch.from_numpy(np.array(array))
+
+
+def _coarsen(ds, factor):
+    if factor == 1:
+        return ds
+    return ds.coarsen(latitude=factor, longitude=factor, boundary="trim").mean()
+
+
+def box(lat_north, lat_south, lon_west, lon_east, resolution=0.25):
+    h0, h1 = int(round((90 - lat_north) / resolution)), int(round((90 - lat_south) / resolution))
+    w0, w1 = int(round(lon_west % 360 / resolution)), int(round(lon_east % 360 / resolution))
+    return {"h0": h0, "h1": h1, "w0": w0, "w1": w1}
+
+
+def load_batch(start_time, data_dir=DATA_DIR, resolution=0.25):
+    factor = resolution / 0.25
+    if abs(factor - round(factor)) > 1e-9 or factor < 1:
+        raise ValueError(f"resolution must be a multiple of 0.25 degrees, you provided {resolution}")
+    factor = int(round(factor))
     p = paths(start_time, data_dir)
-    static = xr.open_dataset(p["static"])
-    surf = xr.open_dataset(p["surface"])
-    atmos = xr.open_dataset(p["atmos"])
+    static = _coarsen(xr.open_dataset(p["static"]), factor)
+    surf = _coarsen(xr.open_dataset(p["surface"]), factor)
+    atmos = _coarsen(xr.open_dataset(p["atmos"]), factor)
 
     tname = _coord(surf, ("valid_time", "time"))
     times = surf[tname].values.astype("datetime64[s]").tolist()
@@ -75,12 +96,12 @@ def load_batch(start_time, data_dir=DATA_DIR):
     atmos = atmos.sel({lname: list(LEVELS)})
 
     return Batch(
-        surf_vars={k: torch.from_numpy(surf[v].values[sel][None]) for k, v in SURF.items()},
-        static_vars={k: torch.from_numpy(static[v].values[0]) for k, v in STATIC.items()},
-        atmos_vars={k: torch.from_numpy(atmos[k].values[sel][None]) for k in ATMOS},
+        surf_vars={k: _tensor(surf[v].values[sel][None]) for k, v in SURF.items()},
+        static_vars={k: _tensor(static[v].values[0]) for k, v in STATIC.items()},
+        atmos_vars={k: _tensor(atmos[k].values[sel][None]) for k in ATMOS},
         metadata=Metadata(
-            lat=torch.from_numpy(surf.latitude.values),
-            lon=torch.from_numpy(surf.longitude.values),
+            lat=_tensor(surf.latitude.values),
+            lon=_tensor(surf.longitude.values),
             time=(times[sel[1]],),
             atmos_levels=tuple(int(level) for level in atmos[lname].values),
         ),

@@ -102,8 +102,9 @@ class AuroraAdapter(ModelAdapter):
 
     def _crop(self, tensor):
         patch = getattr(self.model, "patch_size", 4)
-        h = tensor.shape[-2]
-        return tensor[..., :h - h % patch, :]
+        axis = 0 if tensor.dim() == 1 else -2
+        h = tensor.shape[axis]
+        return tensor.narrow(axis, 0, h - h % patch)
 
     def lat(self, batch):
         return self._crop(batch.metadata.lat).to(self.device)
