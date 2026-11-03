@@ -1,0 +1,13 @@
+# conda env create -f environment.yml   (run from the repository root, the pip line installs this checkout)
+# conda activate xsonde
+name: xsonde
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - -e .[aurora,dev]      # xsonde itself, microsoft-aurora, pytest
+      - cdsapi                # ERA5 downloads in examples/
+      - matplotlib
+      - jupyterlab
