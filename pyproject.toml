@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xsonde"
+version = "0.0.1"
+description = "Explainability probes for earth-system models."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Dimitrios Dekas" }]
+keywords = ["explainable-ai", "xai", "interpretability", "earth-science", "weather", "climate", "geodesy", "foundation-models", "xarray", "pytorch"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24",
+    "torch>=2.0",
+    "xarray>=2023.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+aurora = ["microsoft-aurora"]
+netcdf = ["netCDF4"]
+plot = ["matplotlib", "cartopy"]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/DekasDimitrios/xsonde"
+Repository = "https://github.com/DekasDimitrios/xsonde"
+
+[project.scripts]
+xsonde = "xsonde.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["xsonde*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

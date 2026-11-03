@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+examples/data/
+examples/runs/
+examples/sweeps/ceteris_paribus/

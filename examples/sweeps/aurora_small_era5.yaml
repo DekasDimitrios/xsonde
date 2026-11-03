@@ -1,0 +1,25 @@
+# Ceteris Paribus on the public Aurora Small checkpoint with one day of ERA5.
+# Run from the examples/ directory after the notebook has downloaded the data:
+#   PYTHONPATH=. xsonde run sweeps/aurora_small_era5.yaml
+# Results land next to this file under sweeps/ceteris_paribus/<mode>/<scope>/<config>/<date>/<source>/.
+adapter:
+  name: aurora
+  size: small
+  hub: ["microsoft/aurora", "aurora-0.25-small-pretrained.ckpt"]   # fetched from Hugging Face on first use
+  loader: "era5_loader:load_batch"                                  # examples/era5_loader.py, needs examples/ on PYTHONPATH
+  device: cuda
+data:
+  start_time: 2023-01-01T00:00:00     # first input step; the batch holds 00:00 and 06:00, the forecast is valid 12:00
+method:
+  name: ceteris_paribus
+  source: q
+  targets: ["2t", "msl"]
+  mode: dist                          # sigma-scaled shifts in the model's normalised space
+  perturbations: [-3, -2, -1, 0, 1, 2, 3]
+  reductions:
+    - { name: global_mean, label: globalMean }
+    - { name: regional_mean, label: europe, h0: 120, h1: 200, w0: 0, w1: 120 }   # 40-60N, 0-30E on the 0.25 deg grid
+    - { name: rmse_response, label: rmseResp }                                    # RMS of forecast minus unperturbed forecast
+    - { name: spatial_std, label: spatialStd }                                    # spread of the field, the thesis normaliser
+sweep:
+  method.source: [q, t]               # one run per source; add data.start_time for more days
