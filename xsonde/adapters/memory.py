@@ -16,10 +16,11 @@ class DictAdapter(ModelAdapter):
 
     name = "dict"
 
-    def __init__(self, model=None, loader=None, transforms=None):
+    def __init__(self, model=None, loader=None, transforms=None, lower_bounds=None):
         self.model = resolve(model)
         self.loader = resolve(loader)
         self.transforms = dict(transforms or {})
+        self.lower_bounds = dict(lower_bounds or {})
 
     def load_batch(self, start_time):
         if self.loader is None:
@@ -64,6 +65,9 @@ class DictAdapter(ModelAdapter):
 
     def from_model_space(self, batch, var, x):
         return self.transforms[var][1](x) if var in self.transforms else x
+
+    def lower_bound(self, batch, var):
+        return self.lower_bounds.get(var)
 
     def sigma(self, batch, var):
         sig = batch.get("sigma", {}).get(var)

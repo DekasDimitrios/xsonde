@@ -3,6 +3,7 @@ import json
 import dataclasses
 from itertools import groupby
 
+import torch
 import yaml
 
 from xsonde import results as results_io
@@ -12,7 +13,10 @@ from xsonde.methods import METHODS
 from xsonde.runner.sweep import expand_sweep
 
 
-def run_sweep(config_path, force=False, shard=0, nshards=1, adapter=None):
+def run_sweep(config_path, force=False, shard=0, nshards=1, adapter=None, tf32=True):
+    if tf32 and torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     raw = load_sweep(config_path)
     exp_base = os.path.dirname(os.path.abspath(config_path))
     config_name = os.path.splitext(os.path.basename(config_path))[0]

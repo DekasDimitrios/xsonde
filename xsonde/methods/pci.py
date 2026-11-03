@@ -29,6 +29,8 @@ class PciConfig:
         if self.scheme == "temporal":
             if not self.donor_dates:
                 raise ValueError("the temporal scheme needs donor_dates, one per repeat")
+            self.donor_dates = [d if isinstance(d, datetime) else datetime.fromisoformat(str(d))
+                                for d in self.donor_dates]
             self.repeats = len(self.donor_dates)
         elif self.donor_dates:
             raise ValueError("donor_dates only applies to the temporal scheme")

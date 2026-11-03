@@ -28,9 +28,10 @@ class AuroraAdapter(ModelAdapter):
 
     def __init__(self, loader=None, checkpoint=None, checkpoint_format="aurora", size="small",
                  device="cuda", model_kwargs=None, random_init_seed=None, model=None,
-                 transform=None, hub=None):
+                 transform=None, hub=None, nonnegative=("tp", "tp_mswep", "r")):
         self.loader = resolve(loader)
         self.hub = tuple(hub) if hub else None
+        self.nonnegative = tuple(nonnegative or ())
         self.transform = resolve(transform)
         self.checkpoint = checkpoint
         self.checkpoint_format = checkpoint_format
@@ -100,14 +101,8 @@ class AuroraAdapter(ModelAdapter):
             out = out[0]
         return {**out.surf_vars, **out.atmos_vars}
 
-    def _crop(self, tensor):
-        patch = getattr(self.model, "patch_size", 4)
-        axis = 0 if tensor.dim() == 1 else -2
-        h = tensor.shape[axis]
-        return tensor.narrow(axis, 0, h - h % patch)
-
     def lat(self, batch):
-        return self._crop(batch.metadata.lat).to(self.device)
+        return batch.metadata.lat.to(self.device)
 
     def lon(self, batch):
         return batch.metadata.lon.to(self.device)
@@ -120,7 +115,7 @@ class AuroraAdapter(ModelAdapter):
 
     def land_mask(self, batch):
         lsm = batch.static_vars.get("lsm")
-        return None if lsm is None else self._crop(lsm).to(self.device)
+        return None if lsm is None else lsm.to(self.device)
 
     def sigma(self, batch, var):
         scales = getattr(batch.metadata, "scales", None)
@@ -131,6 +126,9 @@ class AuroraAdapter(ModelAdapter):
             return torch.tensor([scales[f"{var}_{lvl}"] for lvl in batch.metadata.atmos_levels],
                                 device=x.device, dtype=x.dtype)
         return float(scales[var])
+
+    def lower_bound(self, batch, var):
+        return 0.0 if var in self.nonnegative else None
 
     def to_model_space(self, batch, var, x):
         return x if self.transform is None else self.transform(x, var, direct=True)

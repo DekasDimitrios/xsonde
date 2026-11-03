@@ -63,6 +63,13 @@ def _tensor(array):
     return torch.from_numpy(np.array(array))
 
 
+def _static(array):
+    field = np.squeeze(np.array(array))
+    if field.ndim != 2:
+        raise ValueError(f"static field has shape {field.shape}, expected (lat, lon)")
+    return torch.from_numpy(field)
+
+
 def _coarsen(ds, factor):
     if factor == 1:
         return ds
@@ -97,7 +104,7 @@ def load_batch(start_time, data_dir=DATA_DIR, resolution=0.25):
 
     return Batch(
         surf_vars={k: _tensor(surf[v].values[sel][None]) for k, v in SURF.items()},
-        static_vars={k: _tensor(static[v].values[0]) for k, v in STATIC.items()},
+        static_vars={k: _static(static[v].values) for k, v in STATIC.items()},
         atmos_vars={k: _tensor(atmos[k].values[sel][None]) for k in ATMOS},
         metadata=Metadata(
             lat=_tensor(surf.latitude.values),

@@ -58,6 +58,7 @@ class Rise(Probe):
         ch, cw = h // mh, w // mw
         allowed = operators.Selector(region=cfg.region, land_only=cfg.land_only).allowed(h, w, land, x.device)
         readout = Readout(adapter, batch, cfg.targets, cfg.reductions)
+        xm = adapter.to_model_space(batch, cfg.source, x)
 
         with torch.inference_mode():
             readout.set_baseline(adapter.predict(batch))
@@ -70,9 +71,10 @@ class Rise(Probe):
             t0 = time.time()
             for k, raw in enumerate(operators.rise_masks(cfg.masks, h, w, mh, mw, cfg.prob, cfg.seed, x.device)):
                 m = 1.0 - (1.0 - raw) * allowed
-                new = operators.apply(x, operators.blend_mask(x, m), selector, land)
+                blended = adapter.from_model_space(batch, cfg.source, operators.blend_mask(xm, m))
+                new = operators.apply(x, blended, selector, land)
                 pred = adapter.predict(adapter.replace(batch, cfg.source, new))
-                mc = m.reshape(mh, ch, mw, cw).mean(dim=(1, 3))
+                mc = m[:mh * ch, :mw * cw].reshape(mh, ch, mw, cw).mean(dim=(1, 3))
                 mask_acc += mc
                 for t in cfg.targets:
                     for label, val in readout.reduce(pred, t).items():

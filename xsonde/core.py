@@ -105,11 +105,22 @@ class Readout:
 
     def set_baseline(self, pred):
         self.baselines = {t: pred[t] for t in self.targets}
+        first = pred[self.targets[0]]
+        self.out_h, self.out_w = first.shape[-2], first.shape[-1]
+
+    def _aligned(self, tt):
+        h, w = tt.shape[-2], tt.shape[-1]
+        if h > self.lat.shape[0] or w > self.lon.shape[0]:
+            raise ValueError(f"prediction grid {h}x{w} is larger than the coordinate grid "
+                             f"{self.lat.shape[0]}x{self.lon.shape[0]}")
+        mask = None if self.mask is None else self.mask[..., :h, :w]
+        return self.lat[:h], mask
 
     def reduce(self, pred, target):
         tt = pred[target]
         base = self.baselines.get(target, tt)
-        return {r.label: reduce(r.name, tt, self.lat, baseline=base, mask=self.mask,
+        lat, mask = self._aligned(tt)
+        return {r.label: reduce(r.name, tt, lat, baseline=base, mask=mask,
                                 levels=self.levels, **r.params) for r in self.reductions}
 
     def field(self, pred, target):
@@ -123,7 +134,9 @@ class Readout:
         return {t: self.field(self.baselines, t) for t in self.targets}
 
     def coords(self):
-        return self.lat.detach().cpu().numpy(), self.lon.detach().cpu().numpy()
+        h = getattr(self, "out_h", self.lat.shape[0])
+        w = getattr(self, "out_w", self.lon.shape[0])
+        return self.lat[:h].detach().cpu().numpy(), self.lon[:w].detach().cpu().numpy()
 
     def empty(self):
         return {t: {r.label: [] for r in self.reductions} for t in self.targets}

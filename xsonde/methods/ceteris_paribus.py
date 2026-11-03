@@ -26,6 +26,8 @@ class CeterisParibusConfig:
     def __post_init__(self):
         if self.mode not in MODES:
             raise ValueError(f"mode should be one of {sorted(MODES)}, you provided {self.mode!r}")
+        if not self.perturbations:
+            raise ValueError("perturbations must list at least one value")
         self.region = validate_region(self.region)
         self.reductions = coerce_reductions(self.reductions)
 
@@ -49,6 +51,7 @@ class CeterisParibus(Probe):
         sigma = adapter.sigma(batch, cfg.source) if cfg.mode in ("dist", "noise") else None
         readout = Readout(adapter, batch, cfg.targets, cfg.reductions)
         base_val = MODES[cfg.mode]
+        self.lower = cfg.clamp_min if cfg.clamp_min is not None else adapter.lower_bound(batch, cfg.source)
 
         with torch.inference_mode():
             base_pred = adapter.predict(self._perturbed(adapter, batch, x, base_val, selector, land, sigma))
@@ -67,7 +70,8 @@ class CeterisParibus(Probe):
 
         lat, lon = readout.coords()
         return Result(Readout.stack(results), {t: np.stack(f) for t, f in fields.items()}, lat, lon,
-                      meta={"perturbations": list(cfg.perturbations), "mode": cfg.mode})
+                      meta={"perturbations": list(cfg.perturbations), "mode": cfg.mode,
+                            "clamp_min": self.lower})
 
     def _perturbed(self, adapter, batch, x, delta, selector, land, sigma):
         cfg = self.cfg
@@ -82,7 +86,8 @@ class CeterisParibus(Probe):
             xm = adapter.to_model_space(batch, cfg.source, x)
             new = adapter.from_model_space(batch, cfg.source, operators.noise(xm, delta, sigma, cfg.seed))
         else:
-            new = operators.blend_mean(x, delta)
-        if cfg.clamp_min is not None:
-            new = new.clamp(min=cfg.clamp_min)
+            xm = adapter.to_model_space(batch, cfg.source, x)
+            new = adapter.from_model_space(batch, cfg.source, operators.blend_mean(xm, delta))
+        if self.lower is not None:
+            new = new.clamp(min=self.lower)
         return adapter.replace(batch, cfg.source, operators.apply(x, new, selector, land))

@@ -31,8 +31,8 @@ class OcclusionConfig:
 def blocks(h, w, block, land_mask=None, land_only=False, region=None):
     h0, h1, w0, w1 = region if region else (0, h, 0, w)
     out = []
-    for i in range(0, h, block):
-        for j in range(0, w, block):
+    for i in range(0, h - h % block, block):
+        for j in range(0, w - w % block, block):
             if i >= h1 or i + block <= h0 or j >= w1 or j + block <= w0:
                 continue
             if land_only and land_mask is not None:
@@ -60,19 +60,23 @@ class Occlusion(Probe):
         h, w = x.shape[-2], x.shape[-1]
         b = cfg.block
         windows = blocks(h, w, b, land, cfg.land_only, cfg.region)
+        if not windows:
+            raise ValueError("no occlusion window matches the region and land settings")
         readout = Readout(adapter, batch, cfg.targets, cfg.reductions)
-        value = operators.fill_value(x, cfg.fill)
+        xm = adapter.to_model_space(batch, cfg.source, x)
+        value = operators.fill_value(xm, cfg.fill)
 
         with torch.inference_mode():
             readout.set_baseline(adapter.predict(batch))
             baseline_results = readout.baseline_results()
             results = readout.empty()
             for (i, j) in windows:
-                t = x.clone()
+                t = xm.clone()
                 if level_idx is not None:
                     t[..., level_idx, i:i + b, j:j + b] = value[..., level_idx, :, :]
                 else:
                     t[..., i:i + b, j:j + b] = value
+                t = adapter.from_model_space(batch, cfg.source, t)
                 pred = adapter.predict(adapter.replace(batch, cfg.source, t))
                 for target in cfg.targets:
                     for label, v in readout.reduce(pred, target).items():

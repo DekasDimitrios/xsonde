@@ -24,7 +24,11 @@ class ModelAdapter(ABC):
     A batch is opaque to the engine. Variables are addressed by name and exposed as
     tensors shaped (B, T, H, W) for surface fields and (B, T, L, H, W) for atmospheric
     fields, in the units the model consumes. Predictions come back in physical units
-    shaped (B, 1, H, W) or (B, 1, L, H, W).
+    shaped (B, 1, H, W) or (B, 1, L, H, W). Coordinates and the land mask describe the
+    input grid. A model whose output grid is smaller than its input grid, as Aurora's is
+    when it drops the 721st latitude, must return the leading rows and columns of the
+    input grid, because probes align coordinates to predictions by slicing from the top
+    left.
     """
 
     name = "adapter"
@@ -90,6 +94,14 @@ class ModelAdapter(ABC):
     def from_model_space(self, batch, var, x):
         """Inverse of `to_model_space`."""
         return x
+
+    def lower_bound(self, batch, var):
+        """Smallest admissible value of `var` in batch units, or None when unbounded.
+
+        Perturbations clamp to it, so a log-transformed precipitation never goes
+        negative while humidity is left free, as in the reference study.
+        """
+        return None
 
     def named_modules(self):
         """Modules that internal probes may hook, by stable name."""
